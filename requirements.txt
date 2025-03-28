@@ -1,7 +1,7 @@
 
-selenium
 gspread
-oauth2client
-google-api-python-client
-python-telegram-bot
+google-auth
+selenium
 persiantools
+google-api-python-client
+python-telegram-bot==20.7

@@ -1,6 +1,6 @@
 
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -8,7 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from persiantools.jdatetime import JalaliDate
 from googleapiclient.discovery import build
-import telegram
+from telegram import Bot
 import json
 import os
 import time
@@ -20,8 +20,8 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 def get_google_sheets_client():
     creds_json = os.getenv("GOOGLE_CREDENTIALS")
     creds_dict = json.loads(creds_json)
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
 
@@ -33,6 +33,8 @@ def open_worksheet(client):
 def get_driver():
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
     service = Service('chromedriver')
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -49,7 +51,7 @@ def scroll_page(driver):
 
 def extract_product_data(driver, valid_brands):
     product_elements = driver.find_elements(By.CLASS_NAME, 'mantine-Text-root')
-    brands, models = [], []
+    brands, models, prices = [], [], []
     for product in product_elements:
         name = product.text.strip().replace("تومانءء", "").replace("تومان", "").replace("نامشخص", "").strip()
         parts = name.split()
@@ -65,74 +67,44 @@ def extract_product_data(driver, valid_brands):
 
     return brands[25:], models[25:]
 
-def is_number(model_str):
-    try:
-        float(model_str.replace(",", ""))
-        return True
-    except ValueError:
-        return False
-
-def process_model(model_str):
-    model_str = model_str.replace("٬", "").replace(",", "").strip()
-    if is_number(model_str):
-        model_value = float(model_str)
-        model_value_with_increase = model_value * 1.015
-        return f"{model_value_with_increase:,.0f}"
-    return model_str
-
 def write_data_to_sheet(worksheet, models, brands):
     worksheet.clear()
     worksheet.append_row(["مدل", "برند", "تاریخ بروزرسانی"])
     data_to_insert = []
     for i in range(len(brands)):
-        model_str = process_model(models[i])
-        data_to_insert.append([model_str, brands[i], JalaliDate.today().strftime("%Y-%m-%d")])
+        data_to_insert.append([models[i], brands[i], JalaliDate.today().strftime("%Y-%m-%d")])
     worksheet.append_rows(data_to_insert)
 
-def batch_update_cell_colors(service, models):
-    requests = []
-    for row_num, model in enumerate(models, start=2):
-        color = {"red": 1.0, "green": 1.0, "blue": 0.8} if any(keyword in model for keyword in ["RAM", "Non Active", "FA", "Classic"]) else {"red": 0.85, "green": 0.85, "blue": 0.85}
-        requests.append({
-            "repeatCell": {
-                "range": {
-                    "sheetId": 0,
-                    "startRowIndex": row_num - 1,
-                    "endRowIndex": row_num,
-                    "startColumnIndex": 0,
-                    "endColumnIndex": 3
-                },
-                "cell": {
-                    "userEnteredFormat": {
-                        "backgroundColor": color
-                    }
-                },
-                "fields": "userEnteredFormat.backgroundColor"
-            }
-        })
-    service.spreadsheets().batchUpdate(spreadsheetId=SPREADSHEET_ID, body={"requests": requests}).execute()
-
-def send_telegram_message(count):
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+def send_telegram_message(brands, models):
+    bot = Bot(token=TELEGRAM_TOKEN)
     today = JalaliDate.today().strftime("%Y/%m/%d")
-    message = f"✅ بروزرسانی انجام شد!\n🗓️ تاریخ: {today}\n📝 پخش موبایل و جانبی اهورا\n📱 تعداد مدل‌ها: {count} عدد"
+    message = f"✅ بروزرسانی انجام شد!
+📅 تاریخ: {today}
+📱 تعداد مدل‌ها: {len(brands)} عدد\n"
+    for i in range(min(20, len(brands))):
+        message += f"{i+1}- {brands[i]} {models[i]}\n"
     bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
 def main():
-    client = get_google_sheets_client()
-    worksheet = open_worksheet(client)
-    driver = get_driver()
-    driver.get('https://hamrahtel.com/quick-checkout')
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CLASS_NAME, 'mantine-Text-root')))
-    scroll_page(driver)
-    valid_brands = ["Galaxy", "POCO", "Redmi", "iPhone", "Redtone", "VOCAL", "TCL", "NOKIA", "Honor", "Huawei", "GLX", "+Otel"]
-    brands, models = extract_product_data(driver, valid_brands)
-    if brands:
-        write_data_to_sheet(worksheet, models, brands)
-        service = build('sheets', 'v4', credentials=client.auth)
-        batch_update_cell_colors(service, models)
-        send_telegram_message(len(brands))
-    driver.quit()
+    try:
+        client = get_google_sheets_client()
+        worksheet = open_worksheet(client)
+
+        driver = get_driver()
+        driver.get('https://hamrahtel.com/quick-checkout')
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CLASS_NAME, 'mantine-Text-root')))
+        scroll_page(driver)
+
+        valid_brands = ["Galaxy", "POCO", "Redmi", "iPhone", "Redtone", "VOCAL", "TCL", "NOKIA", "Honor", "Huawei", "GLX", "+Otel"]
+        brands, models = extract_product_data(driver, valid_brands)
+
+        if brands:
+            write_data_to_sheet(worksheet, models, brands)
+            send_telegram_message(brands, models)
+
+        driver.quit()
+    except Exception as e:
+        print("❗️Error:", e)
 
 if __name__ == "__main__":
     main()
