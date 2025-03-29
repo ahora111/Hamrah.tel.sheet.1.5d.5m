@@ -1,13 +1,10 @@
+# HamrahTel Scraper - Auto Telegram Sender
 
-# Hamrah.tel.sheet.1.5d.5m
+این پروژه هر ۵ دقیقه اطلاعات محصولات سایت HamrahTel را استخراج کرده و به تلگرام ارسال می‌کند.
 
-پروژه استخراج اطلاعات محصولات سایت hamrahtel.com و ذخیره در Google Sheet + ارسال پیام تلگرام.
+## تنظیمات
+در بخش Secrets ریپازیتوری GitHub خود، دو مقدار زیر را وارد کنید:
+- TELEGRAM_TOKEN → مقدار توکن ربات
+- TELEGRAM_CHAT_ID → آیدی چت تلگرام
 
-## اجرای اتوماتیک
-این پروژه هر ۵ دقیقه یکبار به‌طور خودکار در GitHub Actions اجرا می‌شود.
-
-## تنظیمات Secrets
-در تنظیمات GitHub خود این موارد را اضافه کنید:
-- GOOGLE_CREDENTIALS
-- TELEGRAM_TOKEN
-- TELEGRAM_CHAT_ID
+پس از تنظیم، Workflow هر ۵ دقیقه اجرا شده و اطلاعات جدید را به تلگرام ارسال می‌کند.

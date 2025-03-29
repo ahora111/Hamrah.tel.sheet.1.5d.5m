@@ -4,4 +4,4 @@ google-auth
 selenium
 persiantools
 google-api-python-client
-python-telegram-bot==20.7
+python-telegram-bot==13.15
