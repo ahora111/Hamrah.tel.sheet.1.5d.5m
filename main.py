@@ -16,9 +16,11 @@ def get_driver():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument(f"--user-data-dir=/tmp/chrome-user-data-{time.time()}")  # اضافه شد
     service = Service()
     driver = webdriver.Chrome(service=service, options=options)
     return driver
+
 
 def scroll_page(driver, scroll_pause_time=2):
     last_height = driver.execute_script("return document.body.scrollHeight")
