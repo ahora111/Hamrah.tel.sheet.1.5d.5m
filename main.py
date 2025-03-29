@@ -1,57 +1,110 @@
 import os
-import requests
-from bs4 import BeautifulSoup
 import time
+import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from persiantools.jdatetime import JalaliDate
 
-CATEGORY_URL = "https://hamrahtel.com/product-category/mobile/"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-def send_telegram(message):
+def get_driver():
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    service = Service()
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+def scroll_page(driver, scroll_pause_time=2):
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(scroll_pause_time)
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+def extract_product_data(driver, valid_brands):
+    product_elements = driver.find_elements(By.CLASS_NAME, 'mantine-Text-root')
+    brands, models, dates = [], [], []
+    for product in product_elements:
+        name = product.text.strip().replace("تومانءء", "").replace("تومان", "").replace("نامشخص", "").strip()
+        parts = name.split()
+        brand = parts[0] if len(parts) >= 2 else name
+        model = " ".join(parts[1:]) if len(parts) >= 2 else ""
+        if brand in valid_brands:
+            brands.append(brand)
+            models.append(model)
+            dates.append(JalaliDate.today().strftime("%Y-%m-%d"))
+        else:
+            models.append(brand + " " + model)
+            brands.append("")
+            dates.append(JalaliDate.today().strftime("%Y-%m-%d"))
+    return brands[25:], models[25:], dates[25:]
+
+def is_number(model_str):
+    try:
+        float(model_str.replace(",", ""))
+        return True
+    except ValueError:
+        return False
+
+def process_model(model_str):
+    model_str = model_str.replace("٬", "").replace(",", "").strip()
+    if is_number(model_str):
+        model_value = float(model_str)
+        model_value_with_increase = model_value * 1.015
+        return f"{model_value_with_increase:,.0f}"
+    return model_str
+
+def send_to_telegram(message):
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ اطلاعات توکن یا Chat ID تلگرام تنظیم نشده!")
+        return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {
+    payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "HTML"
     }
-    response = requests.post(url, data=data)
-    if response.status_code != 200:
-        print("❗️ Telegram Error:", response.text)
-
-def scrape_products():
-    headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-    }
-    response = requests.get(CATEGORY_URL, headers=headers)
-    if response.status_code != 200:
-        print("❗️خطا در دریافت صفحه:", response.status_code)
-        return []
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    products = []
-
-    items = soup.select("ul.products li.product")
-    for item in items:
-        title = item.select_one("h2.woocommerce-loop-product__title")
-        price = item.select_one("span.woocommerce-Price-amount")
-        link = item.select_one("a")["href"]
-
-        if title and price:
-            message = f"📱 <b>{title.text.strip()}</b>\n💰 {price.text.strip()}\n🔗 {link}\n"
-            products.append(message)
-
-    return products
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code == 200:
+            print("✅ پیام با موفقیت ارسال شد.")
+        else:
+            print(f"❌ خطا در ارسال پیام: {response.text}")
+    except Exception as e:
+        print(f"❌ خطا در ارتباط با تلگرام: {e}")
 
 def main():
-    products = scrape_products()
-    if not products:
-        print("❗️محصولی پیدا نشد.")
-        return
+    try:
+        driver = get_driver()
+        driver.get('https://hamrahtel.com/quick-checkout')
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CLASS_NAME, 'mantine-Text-root')))
+        print("✅ داده‌ها آماده‌ی استخراج هستند!")
+        scroll_page(driver)
+        valid_brands = ["Galaxy", "POCO", "Redmi", "iPhone", "Redtone", "VOCAL", "TCL", "NOKIA", "Honor", "Huawei", "GLX", "+Otel"]
+        brands, models, dates = extract_product_data(driver, valid_brands)
 
-    for product in products:
-        print(product)
-        send_telegram(product)
-        time.sleep(1)  # برای جلوگیری از محدودیت تلگرام
+        if brands:
+            for i in range(len(brands)):
+                model_str = process_model(models[i])
+                date = dates[i]
+                brand = brands[i] if brands[i] else "نامشخص"
+                message = f"📱 <b>{brand}</b>\n🔸 <b>{model_str}</b>\n📅 {date}"
+                send_to_telegram(message)
+            print("✅ تمام داده‌ها به تلگرام ارسال شد!")
+        else:
+            print("❌ داده‌ای برای ارسال وجود ندارد!")
+        driver.quit()
+    except Exception as e:
+        print(f"❌ خطا: {e}")
 
 if __name__ == "__main__":
     main()
