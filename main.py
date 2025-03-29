@@ -1,12 +1,8 @@
-import time
 import os
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+import time
 
-# تنظیمات
 CATEGORY_URL = "https://hamrahtel.com/product-category/mobile/"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -23,29 +19,26 @@ def send_telegram(message):
         print("❗️ Telegram Error:", response.text)
 
 def scrape_products():
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--user-data-dir=/tmp/chrome-user-data")
-    options.add_argument("--remote-debugging-port=9222")
-    options.binary_location = "/usr/bin/google-chrome"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    }
+    response = requests.get(CATEGORY_URL, headers=headers)
+    if response.status_code != 200:
+        print("❗️خطا در دریافت صفحه:", response.status_code)
+        return []
 
-    driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"), options=options)
-    driver.get(CATEGORY_URL)
-    time.sleep(3)
-
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-    driver.quit()
-
+    soup = BeautifulSoup(response.text, "html.parser")
     products = []
+
     items = soup.select("ul.products li.product")
     for item in items:
-        title = item.select_one("h2.woocommerce-loop-product__title").text.strip()
-        price = item.select_one("span.woocommerce-Price-amount").text.strip()
+        title = item.select_one("h2.woocommerce-loop-product__title")
+        price = item.select_one("span.woocommerce-Price-amount")
         link = item.select_one("a")["href"]
-        message = f"📱 <b>{title}</b>\n💰 {price}\n🔗 {link}\n"
-        products.append(message)
+
+        if title and price:
+            message = f"📱 <b>{title.text.strip()}</b>\n💰 {price.text.strip()}\n🔗 {link}\n"
+            products.append(message)
 
     return products
 
