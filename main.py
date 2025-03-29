@@ -7,7 +7,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# تنظیمات تلگرام از Secret ها
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -16,7 +15,11 @@ def get_driver():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--user-data-dir=/tmp/chrome-data")
+    
+    # مسیر user data منحصر به فرد برای هر اجرا
+    user_data_dir = f"/tmp/chrome-data-{str(int(time.time()))}"
+    options.add_argument(f"--user-data-dir={user_data_dir}")
+    
     service = Service()
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -37,17 +40,15 @@ def extract_product_data(driver, valid_brands):
     for product in product_elements:
         name = product.text.strip().replace("تومانءء", "").replace("تومان", "").replace("نامشخص", "").strip()
         parts = name.split()
-        if not parts:
-            continue
-        brand = parts[0]
+        brand = parts[0] if len(parts) >= 2 else name
         model = " ".join(parts[1:]) if len(parts) >= 2 else ""
         if brand in valid_brands:
             brands.append(brand)
             models.append(model)
         else:
-            models.append(name)
+            models.append(brand + " " + model)
             brands.append("")
-    return brands[25:], models[25:]  # حذف 25 تای اول (تبلیغات یا داده‌های اضافی)
+    return brands[25:], models[25:]
 
 def is_number(model_str):
     try:
@@ -72,8 +73,7 @@ def split_message(text, max_length=4000):
             split_index = max_length
         parts.append(text[:split_index])
         text = text[split_index:].lstrip()
-    if text:
-        parts.append(text)
+    parts.append(text)
     return parts
 
 def send_to_telegram(models, brands):
@@ -82,7 +82,7 @@ def send_to_telegram(models, brands):
         return
     try:
         message = "📱 قیمت‌های جدید:\n\n"
-        for i in range(len(models)):
+        for i in range(len(brands)):
             brand = brands[i] if brands[i] else "نامشخص"
             model = process_model(models[i])
             message += f"🔸 {brand} {model}\n"
@@ -95,7 +95,7 @@ def send_to_telegram(models, brands):
                 print("✅ پیام به تلگرام ارسال شد.")
             else:
                 print(f"❌ خطا در ارسال پیام به تلگرام: {response.text}")
-            time.sleep(1)  # جلوگیری از Flood Limit
+            time.sleep(1)  # برای جلوگیری از Flood Limit
     except Exception as e:
         print(f"❌ خطا در ارسال به تلگرام: {e}")
 
@@ -108,7 +108,7 @@ def main():
         scroll_page(driver)
         valid_brands = ["Galaxy", "POCO", "Redmi", "iPhone", "Redtone", "VOCAL", "TCL", "NOKIA", "Honor", "Huawei", "GLX", "+Otel"]
         brands, models = extract_product_data(driver, valid_brands)
-        if brands and models:
+        if brands:
             send_to_telegram(models, brands)
         else:
             print("❌ داده‌ای برای ارسال وجود ندارد!")
