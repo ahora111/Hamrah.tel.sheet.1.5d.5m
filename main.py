@@ -1,5 +1,6 @@
 import time
 import os
+import tempfile
 import telegram
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -19,7 +20,11 @@ def send_to_telegram(message):
 
 
 def scrape():
+    # ایجاد دایرکتوری موقت برای user-data-dir
+    user_data_dir = tempfile.mkdtemp()
+
     chrome_options = Options()
+    chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
