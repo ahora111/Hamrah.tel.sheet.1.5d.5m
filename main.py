@@ -1,4 +1,5 @@
 import time
+import os
 import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -7,8 +8,8 @@ from selenium.webdriver.chrome.options import Options
 
 # تنظیمات
 CATEGORY_URL = "https://hamrahtel.com/product-category/mobile/"
-TELEGRAM_TOKEN = "توکن_تلگرام_خودت"
-TELEGRAM_CHAT_ID = "آی‌دی_چت_خودت"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -26,6 +27,8 @@ def scrape_products():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--user-data-dir=/tmp/chrome-user-data")
+    options.add_argument("--remote-debugging-port=9222")
     options.binary_location = "/usr/bin/google-chrome"
 
     driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"), options=options)
