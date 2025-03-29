@@ -16,9 +16,8 @@ def get_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
-    # مسیر user data منحصر به فرد برای هر اجرا
-    user_data_dir = f"/tmp/chrome-data-{str(int(time.time()))}"
-    options.add_argument(f"--user-data-dir={user_data_dir}")
+    # حذف گزینه user-data-dir
+    # options.add_argument("--user-data-dir=/tmp/chrome-data")  # حذف این خط
     
     service = Service()
     driver = webdriver.Chrome(service=service, options=options)
