@@ -12,7 +12,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def get_driver():
     options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")  # حالت جدید headless برای رفع باگ‌ها
+    options.add_argument("--headless=new")  # حالت جدید بدون خطا
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     service = Service()
