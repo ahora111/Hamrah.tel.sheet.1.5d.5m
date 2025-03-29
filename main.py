@@ -1,7 +1,5 @@
 import os
 import time
-import random
-import string
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -14,10 +12,9 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def get_driver():
     options = webdriver.ChromeOptions()
-    options.add_argument("--headless")
+    options.add_argument("--headless=new")  # حالت جدید headless برای رفع باگ‌ها
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    # حذف user-data-dir برای جلوگیری از خطا
     service = Service()
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -93,7 +90,7 @@ def send_to_telegram(models, brands):
                 print("✅ پیام به تلگرام ارسال شد.")
             else:
                 print(f"❌ خطا در ارسال پیام به تلگرام: {response.text}")
-            time.sleep(1)
+            time.sleep(1)  # برای جلوگیری از Flood Limit
     except Exception as e:
         print(f"❌ خطا در ارسال به تلگرام: {e}")
 
